@@ -8,10 +8,7 @@ import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
-import hudson.model.BuildListener;
-import hudson.model.Node;
-import hudson.model.AbstractBuild;
-import hudson.model.AbstractProject;
+import hudson.model.*;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
 import hudson.tools.ToolDescriptor;
@@ -449,21 +446,12 @@ public class DockerBuilder extends Builder {
             OutputStream stderr = logStdErr ? 
                     new TeeOutputStream(listener.getLogger(), baosStdErr) : baosStdErr;
 
-            
-            KeyMaterial dockerKeys = 
-                // Docker registry credentials
-                getRegistry().newKeyMaterialFactory(build)
-            .plus(
-                // Docker server credentials. If server is null (right after upgrading) do not use credentials
-                server == null ? null : server.newKeyMaterialFactory(build))
-            .materialize();
 
             EnvVars env = new EnvVars();
             env.putAll(build.getEnvironment(listener));
-            env.putAll(dockerKeys.env());
 
             String dockerCmd = "docker";
-            
+
             if (getDockerToolName() != null) {
 	            try {
 	          		dockerCmd = DockerTool.getExecutable(getDockerToolName(), build.getBuiltOn(), listener, env);
@@ -471,7 +459,9 @@ public class DockerBuilder extends Builder {
 	            	logger.log(Level.WARNING, "Something failed", e);
 	            }
             }
-            
+            KeyMaterial dockerKeys = getRegistry().newKeyMaterialFactory(build, build.getWorkspace(), launcher, build.getCharacteristicEnvVars(),  listener, dockerCmd).materialize();
+            env.putAll(dockerKeys.env());
+
             cmd = dockerCmd + " " +cmd;
             
             logger.log(Level.FINER, "Executing: {0}", cmd);
